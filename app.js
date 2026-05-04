@@ -5,6 +5,8 @@
 const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbxp_3hap9wK6YWWSnE1BI80g7oG3Gi0aEjOYr-Svjs9dxuSlDfB66q7AY_7NCgjk58TIw/exec",
     AUTO_REFRESH_INTERVAL: 60000,
+    POMO_STUDY_SECONDS: 75 * 60,
+    POMO_BREAK_SECONDS: 15 * 60,
 };
 
 /* ---------- Arabic helpers ---------- */
@@ -19,7 +21,6 @@ function pad2Arabic(n) {
     return toArabicDigits(String(n).padStart(2, '0'));
 }
 
-// Arabic plural for hours / minutes
 function pluralizeHours(n) {
     if (n === 0) return null;
     if (n === 1) return 'ساعة واحدة';
@@ -50,7 +51,6 @@ function formatTotalMinutes(totalMinutes) {
     return formatDuration(h, m);
 }
 
-// Arabic day & month names
 const ARABIC_DAYS = [
     'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء',
     'الخميس', 'الجمعة', 'السبت',
@@ -78,7 +78,10 @@ function todayISO() {
     return `${y}-${m}-${day}`;
 }
 
-/* ---------- Tab navigation ---------- */
+/* ---------- Layout: desktop two-column vs mobile tabs ---------- */
+
+const desktopMQ = window.matchMedia('(min-width: 1024px)');
+const isDesktop = () => desktopMQ.matches;
 
 const tabButtons = document.querySelectorAll('.tab');
 const panels = {
@@ -88,8 +91,33 @@ const panels = {
 
 let currentTab = 'log';
 
+function applyLayoutMode() {
+    if (isDesktop()) {
+        // Both panels visible; hidden attribute is overridden by CSS
+        Object.values(panels).forEach(p => {
+            p.hidden = false;
+            p.classList.add('active');
+        });
+        // Ensure leaderboard is always populated and refreshing
+        fetchLeaderboard();
+        startAutoRefresh();
+    } else {
+        Object.entries(panels).forEach(([key, panel]) => {
+            const active = key === currentTab;
+            panel.hidden = !active;
+            panel.classList.toggle('active', active);
+        });
+        if (currentTab === 'leaderboard') {
+            fetchLeaderboard();
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    }
+}
+
 function switchTab(tabName) {
-    if (tabName === currentTab) return;
+    if (tabName === currentTab && !isDesktop()) return;
     currentTab = tabName;
 
     tabButtons.forEach(btn => {
@@ -98,23 +126,14 @@ function switchTab(tabName) {
         btn.setAttribute('aria-selected', active);
     });
 
-    Object.entries(panels).forEach(([key, panel]) => {
-        const active = key === tabName;
-        panel.classList.toggle('active', active);
-        panel.hidden = !active;
-    });
-
-    if (tabName === 'leaderboard') {
-        fetchLeaderboard();
-        startAutoRefresh();
-    } else {
-        stopAutoRefresh();
-    }
+    applyLayoutMode();
 }
 
 tabButtons.forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
+
+desktopMQ.addEventListener('change', applyLayoutMode);
 
 /* ---------- Clock construction ---------- */
 
@@ -125,24 +144,34 @@ const hourGroup = document.getElementById('hour-hand-group');
 const minuteGroup = document.getElementById('minute-hand-group');
 const hourHand = hourGroup.querySelector('.hour-hand');
 const hourKnob = hourGroup.querySelector('.hour-knob');
+const hourKnobInner = hourGroup.querySelector('.hand-knob-inner');
+const hourKnobValue = hourGroup.querySelector('.hour-knob-value');
+const hourKnobLabel = hourGroup.querySelector('.hour-knob-label');
 const minuteHand = minuteGroup.querySelector('.minute-hand');
 const minuteKnob = minuteGroup.querySelector('.minute-knob');
+const minuteKnobInner = minuteGroup.querySelector('.hand-knob-inner');
+const minuteKnobValue = minuteGroup.querySelector('.minute-knob-value');
+const minuteKnobLabel = minuteGroup.querySelector('.minute-knob-label');
 const readoutTime = document.getElementById('readout-time');
-const readoutDigital = document.getElementById('readout-digital');
+const stepValueHour = document.getElementById('step-value-hour');
+const stepValueMinute = document.getElementById('step-value-minute');
 
 const CLOCK_CENTER = 200;
 const CLOCK_RADIUS = 180;
-const HOUR_HAND_LENGTH = 100;   // distance from center -> tip
-const MINUTE_HAND_LENGTH = 140;
+const HOUR_HAND_LENGTH = 90;
+const MINUTE_HAND_LENGTH = 135;
+const HOUR_LABEL_OFFSET = 32;
+const MINUTE_LABEL_OFFSET = 30;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 let selectedHours = 0;
 let selectedMinutes = 0;
-let dragging = null; // 'hour' | 'minute' | null
+let dragging = null;
+let userInteracted = false;
 
 // Build minute ticks
 for (let i = 0; i < 60; i++) {
-    const angle = (i * 6) - 90; // 0 at top
+    const angle = (i * 6) - 90;
     const rad = angle * Math.PI / 180;
     const isMajor = i % 5 === 0;
     const inner = isMajor ? CLOCK_RADIUS - 18 : CLOCK_RADIUS - 10;
@@ -162,7 +191,7 @@ for (let i = 0; i < 60; i++) {
     ticksGroup.appendChild(tick);
 }
 
-// Build hour numerals (1-12)
+// Build hour numerals
 for (let i = 1; i <= 12; i++) {
     const angle = (i * 30) - 90;
     const rad = angle * Math.PI / 180;
@@ -180,9 +209,8 @@ for (let i = 1; i <= 12; i++) {
 /* ---------- Hand positioning ---------- */
 
 function setHourHand(hours) {
-    selectedHours = hours;
-    // 0..12 maps to 0..360
-    const angle = (hours / 12) * 360 - 90;
+    selectedHours = Math.max(0, Math.min(12, hours));
+    const angle = (selectedHours / 12) * 360 - 90;
     const rad = angle * Math.PI / 180;
     const x = CLOCK_CENTER + Math.cos(rad) * HOUR_HAND_LENGTH;
     const y = CLOCK_CENTER + Math.sin(rad) * HOUR_HAND_LENGTH;
@@ -190,13 +218,23 @@ function setHourHand(hours) {
     hourHand.setAttribute('y2', y);
     hourKnob.setAttribute('cx', x);
     hourKnob.setAttribute('cy', y);
-    hourGroup.setAttribute('aria-valuenow', hours);
+    hourKnobInner.setAttribute('cx', x);
+    hourKnobInner.setAttribute('cy', y);
+    hourKnobValue.setAttribute('x', x);
+    hourKnobValue.setAttribute('y', y);
+    // Label below the knob, but pushed outward radially so it never crosses center.
+    const labelX = CLOCK_CENTER + Math.cos(rad) * (HOUR_HAND_LENGTH + HOUR_LABEL_OFFSET);
+    const labelY = CLOCK_CENTER + Math.sin(rad) * (HOUR_HAND_LENGTH + HOUR_LABEL_OFFSET);
+    hourKnobLabel.setAttribute('x', labelX);
+    hourKnobLabel.setAttribute('y', labelY);
+    hourKnobValue.textContent = toArabicDigits(Math.round(selectedHours));
+    hourGroup.setAttribute('aria-valuenow', Math.round(selectedHours));
     updateReadout();
 }
 
 function setMinuteHand(minutes) {
-    selectedMinutes = minutes;
-    const angle = (minutes / 60) * 360 - 90;
+    selectedMinutes = Math.max(0, Math.min(59, Math.round(minutes)));
+    const angle = (selectedMinutes / 60) * 360 - 90;
     const rad = angle * Math.PI / 180;
     const x = CLOCK_CENTER + Math.cos(rad) * MINUTE_HAND_LENGTH;
     const y = CLOCK_CENTER + Math.sin(rad) * MINUTE_HAND_LENGTH;
@@ -204,38 +242,52 @@ function setMinuteHand(minutes) {
     minuteHand.setAttribute('y2', y);
     minuteKnob.setAttribute('cx', x);
     minuteKnob.setAttribute('cy', y);
-    minuteGroup.setAttribute('aria-valuenow', minutes);
+    minuteKnobInner.setAttribute('cx', x);
+    minuteKnobInner.setAttribute('cy', y);
+    minuteKnobValue.setAttribute('x', x);
+    minuteKnobValue.setAttribute('y', y);
+    const labelX = CLOCK_CENTER + Math.cos(rad) * (MINUTE_HAND_LENGTH + MINUTE_LABEL_OFFSET);
+    const labelY = CLOCK_CENTER + Math.sin(rad) * (MINUTE_HAND_LENGTH + MINUTE_LABEL_OFFSET);
+    minuteKnobLabel.setAttribute('x', labelX);
+    minuteKnobLabel.setAttribute('y', labelY);
+    minuteKnobValue.textContent = pad2Arabic(selectedMinutes);
+    minuteGroup.setAttribute('aria-valuenow', selectedMinutes);
     updateReadout();
 }
 
 function updateReadout() {
-    readoutTime.textContent = formatDuration(selectedHours, selectedMinutes);
-    readoutDigital.textContent = `${pad2Arabic(selectedHours)} : ${pad2Arabic(selectedMinutes)}`;
+    const hr = Math.round(selectedHours);
+    readoutTime.textContent = formatDuration(hr, selectedMinutes);
+    stepValueHour.textContent = toArabicDigits(hr);
+    stepValueMinute.textContent = pad2Arabic(selectedMinutes);
+}
+
+function killHints() {
+    if (userInteracted) return;
+    userInteracted = true;
+    document.querySelectorAll('.hand-knob.hint').forEach(k => k.classList.remove('hint'));
 }
 
 /* ---------- Drag interaction ---------- */
 
 function pointToAngle(clientX, clientY) {
-    // Convert screen point to clock coordinate space, then to angle.
     const rect = clock.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
     const dx = clientX - cx;
     const dy = clientY - cy;
-    // angle in degrees, 0 at right, increasing clockwise; we want 0 at top.
     let deg = Math.atan2(dy, dx) * 180 / Math.PI;
-    deg = (deg + 90 + 360) % 360; // 0 = top, increases clockwise
+    deg = (deg + 90 + 360) % 360;
     return deg;
 }
 
 function onPointerDown(e, which) {
     e.preventDefault();
     dragging = which;
+    killHints();
     const target = which === 'hour' ? hourGroup : minuteGroup;
     target.classList.add('dragging');
-    try {
-        target.setPointerCapture(e.pointerId);
-    } catch (_) { /* not all browsers */ }
+    try { target.setPointerCapture(e.pointerId); } catch (_) {}
 }
 
 function onPointerMove(e) {
@@ -244,9 +296,8 @@ function onPointerMove(e) {
     const angle = pointToAngle(e.clientX, e.clientY);
 
     if (dragging === 'hour') {
-        // 0..360 -> 0..12, snap to nearest 15-min increment (i.e. quarter hour)
         let hours = (angle / 360) * 12;
-        hours = Math.round(hours * 4) / 4; // 0.25 increments
+        hours = Math.round(hours);
         if (hours >= 12) hours = 0;
         setHourHand(hours);
     } else {
@@ -260,9 +311,7 @@ function onPointerUp(e) {
     if (!dragging) return;
     const target = dragging === 'hour' ? hourGroup : minuteGroup;
     target.classList.remove('dragging');
-    try {
-        target.releasePointerCapture(e.pointerId);
-    } catch (_) {}
+    try { target.releasePointerCapture(e.pointerId); } catch (_) {}
     dragging = null;
 }
 
@@ -272,11 +321,11 @@ window.addEventListener('pointermove', onPointerMove);
 window.addEventListener('pointerup', onPointerUp);
 window.addEventListener('pointercancel', onPointerUp);
 
-// Tap on clock face (not on hands) sets the closer hand.
+// Tap on clock face (not on hands) sets the minute hand.
 clock.addEventListener('pointerdown', e => {
     if (dragging) return;
     if (e.target.closest('.hand-group')) return;
-    // Use pointer position to set minute hand directly (more useful).
+    killHints();
     const angle = pointToAngle(e.clientX, e.clientY);
     let minutes = Math.round((angle / 360) * 60);
     if (minutes >= 60) minutes = 0;
@@ -286,12 +335,13 @@ clock.addEventListener('pointerdown', e => {
 // Keyboard accessibility for hands
 hourGroup.addEventListener('keydown', e => {
     let h = selectedHours;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') h = Math.min(12, h + 0.25);
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') h = Math.max(0, h - 0.25);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') h = Math.min(12, h + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') h = Math.max(0, h - 1);
     else if (e.key === 'Home') h = 0;
     else if (e.key === 'End') h = 12;
     else return;
     e.preventDefault();
+    killHints();
     setHourHand(h);
 });
 
@@ -305,12 +355,42 @@ minuteGroup.addEventListener('keydown', e => {
     else if (e.key === 'PageDown') m = Math.max(0, m - 5);
     else return;
     e.preventDefault();
+    killHints();
     setMinuteHand(m);
 });
 
-// Initialize hands at 0
+// Initialize
 setHourHand(0);
 setMinuteHand(0);
+
+/* ---------- Stepper buttons ---------- */
+
+document.querySelectorAll('.step-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        killHints();
+        const step = parseInt(btn.dataset.step, 10);
+        const target = btn.dataset.target;
+        if (target === 'hour') {
+            setHourHand(Math.max(0, Math.min(12, Math.round(selectedHours) + step)));
+        } else {
+            let m = selectedMinutes + step;
+            // wrap minutes within 0-59 without affecting hours
+            if (m < 0) m = 0;
+            if (m > 59) m = 59;
+            setMinuteHand(m);
+        }
+    });
+});
+
+/* ---------- Quick presets ---------- */
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        killHints();
+        setHourHand(parseInt(btn.dataset.h, 10));
+        setMinuteHand(parseInt(btn.dataset.m, 10));
+    });
+});
 
 /* ---------- Form fields ---------- */
 
@@ -319,7 +399,6 @@ const dateInput = document.getElementById('session-date');
 const dateDisplay = document.getElementById('date-display');
 const submitBtn = document.getElementById('btn-submit');
 
-// Restore name from localStorage
 const savedName = localStorage.getItem('salat_user_name');
 if (savedName) nameInput.value = savedName;
 
@@ -327,10 +406,8 @@ nameInput.addEventListener('change', () => {
     localStorage.setItem('salat_user_name', nameInput.value.trim());
 });
 
-// Default date = today
 dateInput.value = todayISO();
 updateDateDisplay();
-
 dateInput.addEventListener('change', updateDateDisplay);
 
 function updateDateDisplay() {
@@ -341,15 +418,14 @@ function updateDateDisplay() {
     dateDisplay.textContent = formatArabicDate(dateInput.value);
 }
 
-/* ---------- Submission ---------- */
+/* ---------- Submission (optimistic UX) ---------- */
 
-submitBtn.addEventListener('click', async () => {
+submitBtn.addEventListener('click', () => {
     const userName = nameInput.value.trim();
     const date = dateInput.value;
-    // Convert hour-quarter increments to whole hours + carry fractional to minutes
-    const totalMinutes = Math.round(selectedHours * 60) + selectedMinutes;
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
+    const hours = Math.round(selectedHours);
+    const minutes = selectedMinutes;
+    const totalMinutes = hours * 60 + minutes;
 
     if (!userName) {
         showToast('فضلاً، اكتب اسمك أولاً.', 'error');
@@ -372,33 +448,36 @@ submitBtn.addEventListener('click', async () => {
     submitBtn.classList.add('loading');
     submitBtn.disabled = true;
 
-    try {
-        // Apps Script: send as text/plain to avoid CORS preflight.
-        const res = await fetch(CONFIG.API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ userName, date, hours, minutes }),
-        });
-        const data = await res.json();
+    // Optimistic: show success quickly, then sync.
+    fetch(CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ userName, date, hours, minutes }),
+    })
+    .then(r => r.json())
+    .then(data => {
         if (!data.success) throw new Error(data.error || 'حدث خطأ غير متوقع');
-
         localStorage.setItem('salat_user_name', userName);
         showToast('تم تسجيل جلستك بنجاح! بارك الله في وقتك ✨', 'success');
         launchConfetti();
-
-        // Reset clock
         setHourHand(0);
         setMinuteHand(0);
-
-        // Switch to leaderboard after a short pause
-        setTimeout(() => switchTab('leaderboard'), 1100);
-    } catch (err) {
+        // Refresh leaderboard immediately (cache will be invalidated server-side)
+        invalidateLeaderboardCache();
+        if (!isDesktop()) {
+            setTimeout(() => switchTab('leaderboard'), 900);
+        } else {
+            fetchLeaderboard();
+        }
+    })
+    .catch(err => {
         console.error(err);
         showToast(`تعذّر التسجيل: ${err.message || err}`, 'error');
-    } finally {
+    })
+    .finally(() => {
         submitBtn.classList.remove('loading');
         submitBtn.disabled = false;
-    }
+    });
 });
 
 /* ---------- Toast ---------- */
@@ -419,7 +498,7 @@ function showToast(message, type = 'info', duration = 3500) {
 /* ---------- Confetti ---------- */
 
 const confettiContainer = document.getElementById('confetti-container');
-const CONFETTI_COLORS = ['#D4AF37', '#E8C763', '#F5DA8C', '#F5F0E1'];
+const CONFETTI_COLORS = ['#B8941F', '#D4AF37', '#E8C763', '#F5DA8C'];
 
 function launchConfetti() {
     for (let i = 0; i < 36; i++) {
@@ -437,7 +516,214 @@ function launchConfetti() {
     }
 }
 
-/* ---------- Leaderboard ---------- */
+/* ============================================================
+   Pomodoro timer
+   ============================================================ */
+
+const pomoTimeEl = document.getElementById('pomo-time');
+const pomoPhaseEl = document.getElementById('pomo-phase');
+const pomoRingEl = document.getElementById('pomo-ring-progress');
+const pomoToggleBtn = document.getElementById('pomo-toggle');
+const pomoToggleIcon = document.getElementById('pomo-icon');
+const pomoToggleLabel = document.getElementById('pomo-toggle-label');
+const pomoSkipBtn = document.getElementById('pomo-skip');
+const pomoResetBtn = document.getElementById('pomo-reset');
+const pomoCounterEl = document.getElementById('pomo-counter');
+const pomoCyclesEl = document.getElementById('pomo-cycles');
+
+const POMO_RING_CIRCUMFERENCE = 540.354; // 2π × 86
+
+let pomoState = 'idle';   // idle | running | paused
+let pomoPhase = 'study';  // study | break
+let pomoRemaining = CONFIG.POMO_STUDY_SECONDS;
+let pomoTotal = CONFIG.POMO_STUDY_SECONDS;
+let pomoTickHandle = null;
+let pomoLastTickTs = 0;
+
+function getPomoCyclesToday() {
+    return parseInt(localStorage.getItem(`pomo_cycles_${todayISO()}`) || '0', 10);
+}
+
+function setPomoCyclesToday(n) {
+    localStorage.setItem(`pomo_cycles_${todayISO()}`, String(n));
+    updatePomoCounter();
+}
+
+function updatePomoCounter() {
+    const n = getPomoCyclesToday();
+    if (n > 0) {
+        pomoCounterEl.hidden = false;
+        pomoCyclesEl.textContent = toArabicDigits(n);
+    } else {
+        pomoCounterEl.hidden = true;
+    }
+}
+
+function formatPomoTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${pad2Arabic(m)}:${pad2Arabic(s)}`;
+}
+
+function updatePomoDisplay() {
+    pomoTimeEl.textContent = formatPomoTime(pomoRemaining);
+
+    // Phase label & ring color
+    if (pomoPhase === 'study') {
+        pomoPhaseEl.textContent = pomoState === 'running' ? 'وقت التركيز' :
+                                  pomoState === 'paused' ? 'متوقف مؤقتاً' : 'جاهز للبدء';
+        pomoPhaseEl.classList.remove('break');
+        pomoRingEl.classList.remove('break');
+    } else {
+        pomoPhaseEl.textContent = pomoState === 'running' ? 'وقت الراحة' :
+                                  pomoState === 'paused' ? 'الراحة متوقفة' : 'انتهت الراحة';
+        pomoPhaseEl.classList.add('break');
+        pomoRingEl.classList.add('break');
+    }
+
+    // Toggle button label & icon
+    if (pomoState === 'running') {
+        pomoToggleIcon.textContent = '⏸';
+        pomoToggleLabel.textContent = 'إيقاف مؤقت';
+        pomoToggleBtn.classList.add('running');
+    } else if (pomoState === 'paused') {
+        pomoToggleIcon.textContent = '▶';
+        pomoToggleLabel.textContent = 'متابعة';
+        pomoToggleBtn.classList.remove('running');
+    } else {
+        pomoToggleIcon.textContent = '▶';
+        pomoToggleLabel.textContent = pomoPhase === 'study' ? 'ابدأ التركيز' : 'ابدأ الراحة';
+        pomoToggleBtn.classList.remove('running');
+    }
+
+    // Ring progress
+    const progress = pomoTotal > 0 ? pomoRemaining / pomoTotal : 0;
+    pomoRingEl.style.strokeDashoffset = String(POMO_RING_CIRCUMFERENCE * (1 - progress));
+}
+
+function startPomoInterval() {
+    if (pomoTickHandle) return;
+    pomoLastTickTs = Date.now();
+    pomoTickHandle = setInterval(pomoTick, 250);
+}
+
+function stopPomoInterval() {
+    if (pomoTickHandle) {
+        clearInterval(pomoTickHandle);
+        pomoTickHandle = null;
+    }
+}
+
+function pomoTick() {
+    const now = Date.now();
+    const delta = (now - pomoLastTickTs) / 1000;
+    pomoLastTickTs = now;
+    pomoRemaining = Math.max(0, pomoRemaining - delta);
+    updatePomoDisplay();
+
+    if (pomoRemaining <= 0.001) {
+        completePomoPhase();
+    }
+}
+
+function completePomoPhase() {
+    stopPomoInterval();
+    playBell();
+    if (navigator.vibrate) navigator.vibrate([180, 80, 180]);
+
+    if (pomoPhase === 'study') {
+        const cycles = getPomoCyclesToday() + 1;
+        setPomoCyclesToday(cycles);
+        // Auto-add 75 minutes to the clock for easy logging
+        addStudyMinutesToClock(75);
+        showToast('أحسنت! ٧٥ دقيقة تركيز ✨ تمّت إضافتها لجلستك. وقت الراحة ☕', 'success', 5000);
+        // Switch to break
+        pomoPhase = 'break';
+        pomoTotal = CONFIG.POMO_BREAK_SECONDS;
+        pomoRemaining = CONFIG.POMO_BREAK_SECONDS;
+        pomoState = 'running';
+        startPomoInterval();
+    } else {
+        showToast('انتهت الراحة! جاهز لجلسة جديدة؟', 'info', 4000);
+        pomoPhase = 'study';
+        pomoTotal = CONFIG.POMO_STUDY_SECONDS;
+        pomoRemaining = CONFIG.POMO_STUDY_SECONDS;
+        pomoState = 'idle';
+    }
+    updatePomoDisplay();
+}
+
+function addStudyMinutesToClock(minutes) {
+    const totalNow = Math.round(selectedHours) * 60 + selectedMinutes + minutes;
+    const newH = Math.min(12, Math.floor(totalNow / 60));
+    const newM = totalNow >= 12 * 60 ? 59 : totalNow % 60;
+    setHourHand(newH);
+    setMinuteHand(newM);
+}
+
+function togglePomo() {
+    if (pomoState === 'idle' || pomoState === 'paused') {
+        pomoState = 'running';
+        startPomoInterval();
+    } else {
+        pomoState = 'paused';
+        stopPomoInterval();
+    }
+    updatePomoDisplay();
+}
+
+function resetPomo() {
+    stopPomoInterval();
+    pomoState = 'idle';
+    pomoPhase = 'study';
+    pomoTotal = CONFIG.POMO_STUDY_SECONDS;
+    pomoRemaining = CONFIG.POMO_STUDY_SECONDS;
+    updatePomoDisplay();
+}
+
+function skipPomo() {
+    if (pomoState === 'idle') return;
+    completePomoPhase();
+}
+
+pomoToggleBtn.addEventListener('click', togglePomo);
+pomoSkipBtn.addEventListener('click', skipPomo);
+pomoResetBtn.addEventListener('click', resetPomo);
+
+// Bell sound via Web Audio API (no external file)
+let audioCtx = null;
+function playBell() {
+    try {
+        if (!audioCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            audioCtx = new Ctx();
+        }
+        const t = audioCtx.currentTime;
+        // Two-note chime
+        [900, 600].forEach((freq, i) => {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = 'sine';
+            o.frequency.value = freq;
+            g.gain.setValueAtTime(0.0001, t + i * 0.18);
+            g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.18 + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.18 + 0.5);
+            o.connect(g);
+            g.connect(audioCtx.destination);
+            o.start(t + i * 0.18);
+            o.stop(t + i * 0.18 + 0.5);
+        });
+    } catch (_) {}
+}
+
+// Initial Pomodoro UI
+updatePomoDisplay();
+updatePomoCounter();
+
+/* ============================================================
+   Leaderboard (with stale-while-revalidate cache)
+   ============================================================ */
 
 const leaderboardList = document.getElementById('leaderboard-list');
 const refreshBtn = document.getElementById('btn-refresh');
@@ -445,6 +731,7 @@ const periodButtons = document.querySelectorAll('.period-btn');
 
 let currentPeriod = 'today';
 let autoRefreshTimer = null;
+let activeFetchController = null;
 
 periodButtons.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -461,6 +748,7 @@ periodButtons.forEach(btn => {
 
 refreshBtn.addEventListener('click', () => {
     refreshBtn.classList.add('spinning');
+    invalidateLeaderboardCache();
     fetchLeaderboard();
     setTimeout(() => refreshBtn.classList.remove('spinning'), 700);
 });
@@ -477,25 +765,68 @@ function stopAutoRefresh() {
     }
 }
 
-async function fetchLeaderboard() {
+function invalidateLeaderboardCache() {
+    ['today', 'week', 'month', 'all'].forEach(p => {
+        localStorage.removeItem(`lb_cache_${p}`);
+    });
+}
+
+function fetchLeaderboard() {
     if (CONFIG.API_URL.includes('PASTE_YOUR')) {
         renderLeaderboardError('لم يتم ربط الخادم بعد. عدّل CONFIG.API_URL في app.js');
         return;
     }
-    try {
-        const res = await fetch(`${CONFIG.API_URL}?period=${encodeURIComponent(currentPeriod)}`);
-        const data = await res.json();
+
+    // Show cached data immediately for perceived speed
+    const cacheKey = `lb_cache_${currentPeriod}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+        try {
+            const data = JSON.parse(cached);
+            renderLeaderboard(data, /* stale */ true);
+        } catch (_) {
+            renderSkeleton();
+        }
+    } else {
+        renderSkeleton();
+    }
+
+    // Cancel any in-flight request for the same list
+    if (activeFetchController) activeFetchController.abort();
+    activeFetchController = new AbortController();
+
+    fetch(`${CONFIG.API_URL}?period=${encodeURIComponent(currentPeriod)}`, {
+        signal: activeFetchController.signal,
+    })
+    .then(r => r.json())
+    .then(data => {
         if (!Array.isArray(data)) {
             throw new Error(data.error || 'استجابة غير متوقعة من الخادم');
         }
-        renderLeaderboard(data);
-    } catch (err) {
+        try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch (_) {}
+        renderLeaderboard(data, /* stale */ false);
+    })
+    .catch(err => {
+        if (err.name === 'AbortError') return;
         console.error(err);
-        renderLeaderboardError(`تعذّر تحميل اللوحة: ${err.message || err}`);
+        if (!cached) {
+            renderLeaderboardError(`تعذّر تحميل اللوحة: ${err.message || err}`);
+        }
+    });
+}
+
+function renderSkeleton() {
+    leaderboardList.classList.remove('stale');
+    leaderboardList.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+        const sk = document.createElement('div');
+        sk.className = 'lb-skeleton';
+        leaderboardList.appendChild(sk);
     }
 }
 
 function renderLeaderboardError(msg) {
+    leaderboardList.classList.remove('stale');
     leaderboardList.innerHTML = `
         <div class="leaderboard-empty">
             <div class="leaderboard-empty-icon">⚠️</div>
@@ -504,7 +835,9 @@ function renderLeaderboardError(msg) {
     `;
 }
 
-function renderLeaderboard(rows) {
+function renderLeaderboard(rows, stale) {
+    leaderboardList.classList.toggle('stale', !!stale);
+
     if (!rows || rows.length === 0) {
         leaderboardList.innerHTML = `
             <div class="leaderboard-empty">
@@ -521,7 +854,7 @@ function renderLeaderboard(rows) {
         const rank = idx + 1;
         const el = document.createElement('button');
         el.className = `leaderboard-row rank-${rank}`;
-        el.style.animationDelay = `${idx * 60}ms`;
+        el.style.animationDelay = `${Math.min(idx, 6) * 50}ms`;
         el.type = 'button';
 
         let badgeHtml;
@@ -536,8 +869,9 @@ function renderLeaderboard(rows) {
             : '';
 
         const timeStr = formatTotalMinutes(row.totalMinutes || 0);
-        const sessionsStr = row.sessionsCount
-            ? `${toArabicDigits(row.sessionsCount)} ${row.sessionsCount === 1 ? 'جلسة' : row.sessionsCount === 2 ? 'جلستان' : row.sessionsCount <= 10 ? 'جلسات' : 'جلسة'}`
+        const sessionsCount = row.sessionsCount || 0;
+        const sessionsStr = sessionsCount
+            ? `${toArabicDigits(sessionsCount)} ${sessionsCount === 1 ? 'جلسة' : sessionsCount === 2 ? 'جلستان' : sessionsCount <= 10 ? 'جلسات' : 'جلسة'}`
             : '';
 
         el.innerHTML = `
@@ -595,7 +929,6 @@ function closeModal() {
 }
 
 async function openUserModal(userName) {
-    // Reset to loading state
     modalAvatar.textContent = userName.trim().charAt(0) || '?';
     modalTitle.textContent = userName;
     modalSubtitle.textContent = 'جاري تحميل البيانات…';
@@ -634,7 +967,6 @@ async function openUserModal(userName) {
 }
 
 function renderWeeklyChart(days) {
-    // days: array of { date: YYYY-MM-DD, minutes: number }, oldest first, length 7.
     weeklyChart.innerHTML = '';
     const W = 350;
     const H = 160;
@@ -645,8 +977,8 @@ function renderWeeklyChart(days) {
     const defs = document.createElementNS(SVG_NS, 'defs');
     defs.innerHTML = `
         <linearGradient id="chartBarGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#E8C763"/>
-            <stop offset="100%" stop-color="#D4AF37" stop-opacity="0.6"/>
+            <stop offset="0%" stop-color="#D4AF37"/>
+            <stop offset="100%" stop-color="#B8941F" stop-opacity="0.7"/>
         </linearGradient>
     `;
     weeklyChart.appendChild(defs);
@@ -656,16 +988,13 @@ function renderWeeklyChart(days) {
     const slot = innerW / barCount;
     const barW = Math.min(34, slot * 0.62);
 
-    // For RTL, draw oldest on the right, today on the left? Spec says "last 7 days".
-    // We'll show oldest -> newest from RIGHT to LEFT (RTL reading order).
     days.slice(0, 7).forEach((d, i) => {
-        const reversedIdx = (barCount - 1) - i; // from right to left
+        const reversedIdx = (barCount - 1) - i;
         const minutes = d.minutes || 0;
         const h = (minutes / max) * innerH;
         const x = pad.left + reversedIdx * slot + (slot - barW) / 2;
         const y = pad.top + (innerH - h);
 
-        // Bar
         const rect = document.createElementNS(SVG_NS, 'rect');
         rect.setAttribute('x', x);
         rect.setAttribute('y', y);
@@ -675,7 +1004,6 @@ function renderWeeklyChart(days) {
         rect.setAttribute('class', 'chart-bar');
         weeklyChart.appendChild(rect);
 
-        // Value above bar (only if > 0)
         if (minutes > 0) {
             const valueText = document.createElementNS(SVG_NS, 'text');
             valueText.setAttribute('x', x + barW / 2);
@@ -689,7 +1017,6 @@ function renderWeeklyChart(days) {
             weeklyChart.appendChild(valueText);
         }
 
-        // Day label
         const date = new Date(d.date + 'T00:00:00');
         const label = document.createElementNS(SVG_NS, 'text');
         label.setAttribute('x', x + barW / 2);
@@ -710,15 +1037,14 @@ function renderWeeklyChart(days) {
 
 /* ---------- Page lifecycle ---------- */
 
-// Pause auto-refresh when tab is hidden, resume when visible.
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         stopAutoRefresh();
-    } else if (currentTab === 'leaderboard') {
-        fetchLeaderboard();
-        startAutoRefresh();
+    } else {
+        applyLayoutMode();
     }
 });
 
-// Initial readout
+// Initial layout
+applyLayoutMode();
 updateReadout();
