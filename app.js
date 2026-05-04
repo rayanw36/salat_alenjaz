@@ -560,8 +560,9 @@ function updatePomoCounter() {
 }
 
 function formatPomoTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    const total = Math.ceil(seconds);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
     return `${pad2Arabic(m)}:${pad2Arabic(s)}`;
 }
 
@@ -689,6 +690,32 @@ function skipPomo() {
 pomoToggleBtn.addEventListener('click', togglePomo);
 pomoSkipBtn.addEventListener('click', skipPomo);
 pomoResetBtn.addEventListener('click', resetPomo);
+
+// Fullscreen mode for the Pomodoro card
+const pomoFullscreenBtn = document.getElementById('pomo-fullscreen');
+const pomoCard = document.querySelector('.pomo-card');
+
+pomoFullscreenBtn.addEventListener('click', () => {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        pomoCard.requestFullscreen().catch(() => {
+            // Fallback for browsers that block fullscreen
+            pomoCard.classList.toggle('pomo-fake-fullscreen');
+        });
+    }
+});
+
+document.addEventListener('fullscreenchange', () => {
+    pomoCard.classList.toggle('pomo-fullscreen', !!document.fullscreenElement);
+});
+
+// Also allow Escape to exit the CSS-only fallback
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && pomoCard.classList.contains('pomo-fake-fullscreen')) {
+        pomoCard.classList.remove('pomo-fake-fullscreen');
+    }
+});
 
 // Bell sound via Web Audio API (no external file)
 let audioCtx = null;

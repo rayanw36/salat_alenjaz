@@ -408,6 +408,67 @@ h1, h2, h3, h4 {
     margin-left: 4px;
 }
 
+/* Pomodoro fullscreen mode (native + CSS fallback) */
+.pomo-card.pomo-fullscreen,
+.pomo-card.pomo-fake-fullscreen {
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 0;
+    padding: 40px 24px;
+    z-index: 9999;
+}
+
+.pomo-card.pomo-fake-fullscreen {
+    position: fixed;
+    inset: 0;
+}
+
+.pomo-card.pomo-fullscreen .pomo-ring-wrapper,
+.pomo-card.pomo-fake-fullscreen .pomo-ring-wrapper {
+    width: min(420px, 55vh);
+    height: min(420px, 55vh);
+}
+
+.pomo-card.pomo-fullscreen .pomo-time,
+.pomo-card.pomo-fake-fullscreen .pomo-time {
+    font-size: clamp(3rem, 8vh, 5.5rem);
+}
+
+.pomo-card.pomo-fullscreen .pomo-phase,
+.pomo-card.pomo-fake-fullscreen .pomo-phase {
+    font-size: clamp(1.1rem, 2.5vh, 1.6rem);
+}
+
+.pomo-card.pomo-fullscreen .card-header h2,
+.pomo-card.pomo-fake-fullscreen .card-header h2 {
+    font-size: clamp(1.5rem, 3.5vh, 2.2rem);
+}
+
+.pomo-card.pomo-fullscreen .card-subtitle,
+.pomo-card.pomo-fake-fullscreen .card-subtitle {
+    font-size: clamp(0.95rem, 2vh, 1.2rem);
+}
+
+.pomo-card.pomo-fullscreen .pomo-btn,
+.pomo-card.pomo-fake-fullscreen .pomo-btn {
+    padding: 14px 24px;
+    font-size: 1.05rem;
+}
+
+.pomo-card.pomo-fullscreen .ring-track,
+.pomo-card.pomo-fake-fullscreen .ring-track {
+    stroke-width: 8;
+}
+
+.pomo-card.pomo-fullscreen .ring-progress,
+.pomo-card.pomo-fake-fullscreen .ring-progress {
+    stroke-width: 8;
+}
+
 /* ============================================================
    Clock card
    ============================================================ */
