@@ -3,7 +3,7 @@
    ============================================================ */
 
 const CONFIG = {
-    API_URL: "PASTE_YOUR_APPS_SCRIPT_URL_HERE",
+    API_URL: "https://script.google.com/macros/s/AKfycbxp_3hap9wK6YWWSnE1BI80g7oG3Gi0aEjOYr-Svjs9dxuSlDfB66q7AY_7NCgjk58TIw/exec",
     AUTO_REFRESH_INTERVAL: 60000,
 };
 
