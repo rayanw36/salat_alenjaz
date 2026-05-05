@@ -493,8 +493,8 @@ h1, h2, h3, h4 {
 
 @media (min-width: 768px) {
     .focus-grid {
-        grid-template-columns: 3fr 2fr;
-        gap: 48px;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 56px;
     }
 }
 
@@ -503,26 +503,26 @@ h1, h2, h3, h4 {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 28px;
+    gap: 32px;
     text-align: center;
 }
 
 .focus-ring-wrapper {
     position: relative;
-    width: min(380px, 50vh);
-    height: min(380px, 50vh);
+    width: min(480px, 60vh);
+    height: min(480px, 60vh);
 }
 
 .focus-ring-wrapper .ring-track {
-    stroke-width: 8;
+    stroke-width: 7;
 }
 
 .focus-ring-wrapper .ring-progress {
-    stroke-width: 8;
+    stroke-width: 7;
 }
 
 .focus-time {
-    font-size: clamp(3.5rem, 10vh, 6rem);
+    font-size: clamp(4rem, 12vh, 8rem);
     font-weight: 900;
     color: var(--text-primary);
     font-variant-numeric: tabular-nums;
@@ -531,8 +531,8 @@ h1, h2, h3, h4 {
 }
 
 .focus-phase {
-    margin-top: 8px;
-    font-size: clamp(1.1rem, 2.5vh, 1.5rem);
+    margin-top: 10px;
+    font-size: clamp(1.2rem, 3vh, 1.8rem);
     color: var(--gold);
     font-weight: 700;
 }
@@ -543,21 +543,21 @@ h1, h2, h3, h4 {
 
 .focus-controls {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
     justify-content: center;
 }
 
 .focus-btn {
-    padding: 14px 28px;
-    font-size: 1.05rem;
+    padding: 16px 32px;
+    font-size: 1.15rem;
 }
 
 .focus-counter {
-    font-size: 1rem;
+    font-size: 1.1rem;
     color: var(--text-secondary);
     background: rgba(212, 175, 55, 0.1);
-    padding: 10px 20px;
+    padding: 12px 24px;
     border-radius: var(--radius-pill);
     border: 1px solid var(--border);
 }
@@ -572,32 +572,71 @@ h1, h2, h3, h4 {
     background: var(--surface-strong);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    padding: 24px 20px;
-    max-height: 70vh;
+    padding: 28px 24px;
+    max-height: 80vh;
     overflow-y: auto;
     box-shadow: var(--shadow-soft);
 }
 
 .focus-leaderboard-side h3 {
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     color: var(--text-primary);
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     text-align: center;
+}
+
+/* Focus period filter */
+.focus-period-filter {
+    display: flex;
+    gap: 4px;
+    background: rgba(184, 148, 31, 0.08);
+    padding: 4px;
+    border-radius: var(--radius-pill);
+    margin-bottom: 18px;
+}
+
+.focus-period-btn {
+    flex: 1;
+    padding: 9px 12px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    border-radius: var(--radius-pill);
+    transition: all 0.3s var(--ease-out);
+    white-space: nowrap;
+}
+
+.focus-period-btn:hover {
+    color: var(--gold-deep);
+}
+
+.focus-period-btn.active {
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+    color: #FFFFFF;
+    box-shadow: 0 3px 10px rgba(184, 148, 31, 0.35);
 }
 
 .focus-leaderboard-list {
     display: grid;
-    gap: 8px;
+    gap: 10px;
 }
 
 .focus-leaderboard-list .leaderboard-row {
-    padding: 10px 12px;
-    font-size: 0.92rem;
+    padding: 12px 14px;
+    font-size: 1rem;
 }
 
 .focus-leaderboard-list .rank-badge {
-    width: 38px;
-    height: 38px;
+    width: 42px;
+    height: 42px;
+    font-size: 1rem;
+}
+
+.focus-leaderboard-list .row-name {
+    font-size: 1.05rem;
+}
+
+.focus-leaderboard-list .row-time {
     font-size: 0.95rem;
 }
 
@@ -1567,12 +1606,37 @@ h1, h2, h3, h4 {
     }
 
     .focus-ring-wrapper {
-        width: min(440px, 55vh);
-        height: min(440px, 55vh);
+        width: min(520px, 65vh);
+        height: min(520px, 65vh);
     }
 
     .focus-time {
-        font-size: clamp(4rem, 12vh, 7rem);
+        font-size: clamp(5rem, 14vh, 9rem);
+    }
+
+    .focus-phase {
+        font-size: clamp(1.4rem, 3vh, 2rem);
+    }
+
+    .focus-btn {
+        padding: 18px 36px;
+        font-size: 1.2rem;
+    }
+
+    .focus-leaderboard-side {
+        padding: 32px 28px;
+    }
+
+    .focus-leaderboard-side h3 {
+        font-size: 1.6rem;
+    }
+
+    .focus-leaderboard-list .leaderboard-row {
+        padding: 14px 16px;
+    }
+
+    .focus-leaderboard-list .row-name {
+        font-size: 1.1rem;
     }
 }
 

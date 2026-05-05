@@ -439,9 +439,15 @@
                 </div>
             </div>
 
-            <!-- Left side: today's leaderboard -->
+            <!-- Left side: leaderboard with period filter -->
             <div class="focus-leaderboard-side">
-                <h3>لوحة المتصدرين — اليوم</h3>
+                <h3>لوحة المتصدرين</h3>
+                <div class="focus-period-filter" role="tablist" aria-label="الفترة الزمنية">
+                    <button class="focus-period-btn active" data-period="today">اليوم</button>
+                    <button class="focus-period-btn" data-period="week">الأسبوع</button>
+                    <button class="focus-period-btn" data-period="month">الشهر</button>
+                    <button class="focus-period-btn" data-period="all">الكل</button>
+                </div>
                 <div class="focus-leaderboard-list" id="focus-leaderboard-list"></div>
             </div>
         </div>

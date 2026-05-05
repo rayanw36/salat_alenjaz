@@ -778,18 +778,37 @@ function syncFocusDisplay() {
     }
 }
 
+// Focus mode period filter
+let focusPeriod = 'today';
+const focusPeriodBtns = document.querySelectorAll('.focus-period-btn');
+
+focusPeriodBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (btn.classList.contains('active')) return;
+        focusPeriod = btn.dataset.period;
+        focusPeriodBtns.forEach(b => b.classList.toggle('active', b === btn));
+        loadFocusLeaderboard();
+    });
+});
+
 function loadFocusLeaderboard() {
     if (CONFIG.API_URL.includes('PASTE_YOUR')) {
         focusLeaderboardList.innerHTML = '<div class="leaderboard-empty"><p>لم يتم ربط الخادم</p></div>';
         return;
     }
-    const cached = localStorage.getItem('lb_cache_today');
+    const cacheKey = `lb_cache_${focusPeriod}`;
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
         try { renderFocusLeaderboard(JSON.parse(cached)); } catch (_) {}
     }
-    fetch(`${CONFIG.API_URL}?period=today`)
+    fetch(`${CONFIG.API_URL}?period=${encodeURIComponent(focusPeriod)}`)
         .then(r => r.json())
-        .then(data => { if (Array.isArray(data)) renderFocusLeaderboard(data); })
+        .then(data => {
+            if (Array.isArray(data)) {
+                try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch (_) {}
+                renderFocusLeaderboard(data);
+            }
+        })
         .catch(() => {});
 }
 
