@@ -84,6 +84,11 @@
         </nav>
     </header>
 
+    <!-- Motivational quote -->
+    <div class="quote-banner" id="quote-banner">
+        <p class="quote-text" id="quote-text">لا تحسبِ المجدَ تَمْراً أنت آكله … لن تبلغَ المجد حَتَّى تَلْعَق الصَّبِر</p>
+    </div>
+
     <!-- Main content -->
     <main class="app-main">
         <div class="content-grid">
@@ -102,8 +107,30 @@
                     </button>
                     <header class="card-header">
                         <h2>تايمر التركيز</h2>
-                        <p class="card-subtitle">٧٥ دقيقة تركيز · ١٥ دقيقة راحة</p>
+                        <p class="card-subtitle" id="pomo-subtitle">٧٥ دقيقة تركيز · ١٥ دقيقة راحة</p>
                     </header>
+
+                    <!-- Duration settings -->
+                    <div class="pomo-settings">
+                        <div class="pomo-setting">
+                            <label for="pomo-study-input">تركيز</label>
+                            <div class="pomo-setting-control">
+                                <button class="pomo-setting-btn" data-target="study" data-step="-5">−</button>
+                                <input type="number" id="pomo-study-input" value="75" min="5" max="180" step="5">
+                                <button class="pomo-setting-btn" data-target="study" data-step="5">+</button>
+                            </div>
+                            <span class="pomo-setting-unit">دقيقة</span>
+                        </div>
+                        <div class="pomo-setting">
+                            <label for="pomo-break-input">راحة</label>
+                            <div class="pomo-setting-control">
+                                <button class="pomo-setting-btn" data-target="break" data-step="-5">−</button>
+                                <input type="number" id="pomo-break-input" value="15" min="1" max="60" step="5">
+                                <button class="pomo-setting-btn" data-target="break" data-step="5">+</button>
+                            </div>
+                            <span class="pomo-setting-unit">دقيقة</span>
+                        </div>
+                    </div>
 
                     <div class="pomo-body">
                         <div class="pomo-ring-wrapper">

@@ -5,9 +5,12 @@
 const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbxp_3hap9wK6YWWSnE1BI80g7oG3Gi0aEjOYr-Svjs9dxuSlDfB66q7AY_7NCgjk58TIw/exec",
     AUTO_REFRESH_INTERVAL: 60000,
-    POMO_STUDY_SECONDS: 75 * 60,
-    POMO_BREAK_SECONDS: 15 * 60,
+    QUOTE_ROTATE_INTERVAL: 30000,
 };
+
+// Customizable durations (saved in localStorage)
+let POMO_STUDY_MINUTES = parseInt(localStorage.getItem('pomo_study_min') || '75', 10);
+let POMO_BREAK_MINUTES = parseInt(localStorage.getItem('pomo_break_min') || '15', 10);
 
 /* ---------- Arabic helpers ---------- */
 
@@ -535,8 +538,8 @@ const POMO_RING_CIRCUMFERENCE = 540.354; // 2π × 86
 
 let pomoState = 'idle';   // idle | running | paused
 let pomoPhase = 'study';  // study | break
-let pomoRemaining = CONFIG.POMO_STUDY_SECONDS;
-let pomoTotal = CONFIG.POMO_STUDY_SECONDS;
+let pomoRemaining = POMO_STUDY_MINUTES * 60;
+let pomoTotal = POMO_STUDY_MINUTES * 60;
 let pomoTickHandle = null;
 let pomoLastTickTs = 0;
 
@@ -638,20 +641,19 @@ function completePomoPhase() {
     if (pomoPhase === 'study') {
         const cycles = getPomoCyclesToday() + 1;
         setPomoCyclesToday(cycles);
-        // Auto-add 75 minutes to the clock for easy logging
-        addStudyMinutesToClock(75);
-        showToast('أحسنت! ٧٥ دقيقة تركيز ✨ تمّت إضافتها لجلستك. وقت الراحة ☕', 'success', 5000);
+        addStudyMinutesToClock(POMO_STUDY_MINUTES);
+        showToast(`أحسنت! ${toArabicDigits(POMO_STUDY_MINUTES)} دقيقة تركيز ✨ تمّت إضافتها لجلستك. وقت الراحة ☕`, 'success', 5000);
         // Switch to break
         pomoPhase = 'break';
-        pomoTotal = CONFIG.POMO_BREAK_SECONDS;
-        pomoRemaining = CONFIG.POMO_BREAK_SECONDS;
+        pomoTotal = POMO_BREAK_MINUTES * 60;
+        pomoRemaining = POMO_BREAK_MINUTES * 60;
         pomoState = 'running';
         startPomoInterval();
     } else {
         showToast('انتهت الراحة! جاهز لجلسة جديدة؟', 'info', 4000);
         pomoPhase = 'study';
-        pomoTotal = CONFIG.POMO_STUDY_SECONDS;
-        pomoRemaining = CONFIG.POMO_STUDY_SECONDS;
+        pomoTotal = POMO_STUDY_MINUTES * 60;
+        pomoRemaining = POMO_STUDY_MINUTES * 60;
         pomoState = 'idle';
     }
     updatePomoDisplay();
@@ -680,8 +682,8 @@ function resetPomo() {
     stopPomoInterval();
     pomoState = 'idle';
     pomoPhase = 'study';
-    pomoTotal = CONFIG.POMO_STUDY_SECONDS;
-    pomoRemaining = CONFIG.POMO_STUDY_SECONDS;
+    pomoTotal = POMO_STUDY_MINUTES * 60;
+    pomoRemaining = POMO_STUDY_MINUTES * 60;
     updatePomoDisplay();
 }
 
@@ -1180,6 +1182,118 @@ function renderWeeklyChart(days) {
         weeklyChart.appendChild(dayNum);
     });
 }
+
+/* ============================================================
+   Pomodoro duration settings
+   ============================================================ */
+
+const pomoStudyInput = document.getElementById('pomo-study-input');
+const pomoBreakInput = document.getElementById('pomo-break-input');
+const pomoSubtitle = document.getElementById('pomo-subtitle');
+
+pomoStudyInput.value = POMO_STUDY_MINUTES;
+pomoBreakInput.value = POMO_BREAK_MINUTES;
+updatePomoSubtitle();
+
+function updatePomoSubtitle() {
+    pomoSubtitle.textContent = `${toArabicDigits(POMO_STUDY_MINUTES)} دقيقة تركيز · ${toArabicDigits(POMO_BREAK_MINUTES)} دقيقة راحة`;
+}
+
+function applyPomoDuration(target, value) {
+    if (target === 'study') {
+        value = Math.max(5, Math.min(180, value));
+        POMO_STUDY_MINUTES = value;
+        localStorage.setItem('pomo_study_min', String(value));
+        pomoStudyInput.value = value;
+        if (pomoState === 'idle' && pomoPhase === 'study') {
+            pomoTotal = value * 60;
+            pomoRemaining = value * 60;
+            updatePomoDisplay();
+        }
+    } else {
+        value = Math.max(1, Math.min(60, value));
+        POMO_BREAK_MINUTES = value;
+        localStorage.setItem('pomo_break_min', String(value));
+        pomoBreakInput.value = value;
+        if (pomoState === 'idle' && pomoPhase === 'break') {
+            pomoTotal = value * 60;
+            pomoRemaining = value * 60;
+            updatePomoDisplay();
+        }
+    }
+    updatePomoSubtitle();
+}
+
+document.querySelectorAll('.pomo-setting-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const target = btn.dataset.target;
+        const step = parseInt(btn.dataset.step, 10);
+        const current = target === 'study' ? POMO_STUDY_MINUTES : POMO_BREAK_MINUTES;
+        applyPomoDuration(target, current + step);
+    });
+});
+
+pomoStudyInput.addEventListener('change', () => {
+    applyPomoDuration('study', parseInt(pomoStudyInput.value, 10) || 75);
+});
+
+pomoBreakInput.addEventListener('change', () => {
+    applyPomoDuration('break', parseInt(pomoBreakInput.value, 10) || 15);
+});
+
+/* ============================================================
+   Motivational quotes (from Google Sheet or fallback)
+   ============================================================ */
+
+const quoteTextEl = document.getElementById('quote-text');
+let quotes = ['لا تحسبِ المجدَ تَمْراً أنت آكله … لن تبلغَ المجد حَتَّى تَلْعَق الصَّبِر'];
+let quoteIndex = 0;
+let quoteRotateTimer = null;
+
+function fetchQuotes() {
+    if (CONFIG.API_URL.includes('PASTE_YOUR')) return;
+    fetch(`${CONFIG.API_URL}?period=quotes`)
+        .then(r => r.json())
+        .then(data => {
+            if (Array.isArray(data) && data.length > 0) {
+                quotes = data;
+                quoteTextEl.textContent = quotes[0];
+                quoteIndex = 0;
+                startQuoteRotation();
+                try { localStorage.setItem('cached_quotes', JSON.stringify(data)); } catch (_) {}
+            }
+        })
+        .catch(() => {});
+}
+
+function rotateQuote() {
+    quoteIndex = (quoteIndex + 1) % quotes.length;
+    quoteTextEl.classList.add('fade');
+    setTimeout(() => {
+        quoteTextEl.textContent = quotes[quoteIndex];
+        quoteTextEl.classList.remove('fade');
+    }, 500);
+}
+
+function startQuoteRotation() {
+    if (quoteRotateTimer) clearInterval(quoteRotateTimer);
+    if (quotes.length > 1) {
+        quoteRotateTimer = setInterval(rotateQuote, CONFIG.QUOTE_ROTATE_INTERVAL);
+    }
+}
+
+// Load cached quotes immediately, then fetch fresh ones
+try {
+    const cached = localStorage.getItem('cached_quotes');
+    if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) quotes = parsed;
+    }
+} catch (_) {}
+
+quoteTextEl.textContent = quotes[0];
+fetchQuotes();
+startQuoteRotation();
 
 /* ---------- Page lifecycle ---------- */
 

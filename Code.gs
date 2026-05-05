@@ -141,10 +141,43 @@ function doGet(e) {
       return jsonResponse_(getUserStats_(params.name || ''));
     }
 
+    if (period === 'quotes') {
+      return jsonResponse_(getQuotes_());
+    }
+
     return jsonResponse_(getLeaderboardCached_(period));
   } catch (err) {
     return jsonResponse_({ error: String(err && err.message || err) });
   }
+}
+
+/**
+ * Read quotes from a "Quotes" tab (single column A).
+ * Returns an array of non-empty strings. Cached for 5 minutes.
+ */
+function getQuotes_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('quotes');
+  if (cached) {
+    try { return JSON.parse(cached); } catch (_) {}
+  }
+
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName('Quotes');
+  if (!sheet) return [];
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 1) return [];
+
+  const values = sheet.getRange(1, 1, lastRow, 1).getValues();
+  const quotes = [];
+  for (let i = 0; i < values.length; i++) {
+    const q = String(values[i][0] || '').trim();
+    if (q) quotes.push(q);
+  }
+
+  try { cache.put('quotes', JSON.stringify(quotes), 300); } catch (_) {}
+  return quotes;
 }
 
 /**
