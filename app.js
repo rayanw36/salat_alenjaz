@@ -600,6 +600,9 @@ function updatePomoDisplay() {
     // Ring progress
     const progress = pomoTotal > 0 ? pomoRemaining / pomoTotal : 0;
     pomoRingEl.style.strokeDashoffset = String(POMO_RING_CIRCUMFERENCE * (1 - progress));
+
+    // Sync focus mode if open
+    if (typeof syncFocusDisplay === 'function') syncFocusDisplay();
 }
 
 function startPomoInterval() {
@@ -691,31 +694,128 @@ pomoToggleBtn.addEventListener('click', togglePomo);
 pomoSkipBtn.addEventListener('click', skipPomo);
 pomoResetBtn.addEventListener('click', resetPomo);
 
-// Fullscreen mode for the Pomodoro card
-const pomoFullscreenBtn = document.getElementById('pomo-fullscreen');
-const pomoCard = document.querySelector('.pomo-card');
+// Focus mode — full-page timer + leaderboard
+const focusOverlay = document.getElementById('focus-overlay');
+const focusCloseBtn = document.getElementById('focus-close');
+const focusExpandBtn = document.getElementById('pomo-expand');
+const focusTimeEl = document.getElementById('focus-time');
+const focusPhaseEl = document.getElementById('focus-phase');
+const focusRingEl = document.getElementById('focus-ring-progress');
+const focusToggleBtn = document.getElementById('focus-toggle');
+const focusToggleIcon = document.getElementById('focus-icon');
+const focusToggleLabel = document.getElementById('focus-toggle-label');
+const focusSkipBtn = document.getElementById('focus-skip-btn');
+const focusResetBtn = document.getElementById('focus-reset-btn');
+const focusCounterEl = document.getElementById('focus-counter');
+const focusCyclesEl = document.getElementById('focus-cycles');
+const focusLeaderboardList = document.getElementById('focus-leaderboard-list');
 
-pomoFullscreenBtn.addEventListener('click', () => {
-    if (document.fullscreenElement) {
-        document.exitFullscreen();
-    } else {
-        pomoCard.requestFullscreen().catch(() => {
-            // Fallback for browsers that block fullscreen
-            pomoCard.classList.toggle('pomo-fake-fullscreen');
-        });
-    }
-});
+let focusMode = false;
 
-document.addEventListener('fullscreenchange', () => {
-    pomoCard.classList.toggle('pomo-fullscreen', !!document.fullscreenElement);
-});
+focusExpandBtn.addEventListener('click', enterFocusMode);
+focusCloseBtn.addEventListener('click', exitFocusMode);
+focusToggleBtn.addEventListener('click', togglePomo);
+focusSkipBtn.addEventListener('click', skipPomo);
+focusResetBtn.addEventListener('click', resetPomo);
 
-// Also allow Escape to exit the CSS-only fallback
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && pomoCard.classList.contains('pomo-fake-fullscreen')) {
-        pomoCard.classList.remove('pomo-fake-fullscreen');
-    }
+    if (e.key === 'Escape' && focusMode) exitFocusMode();
 });
+
+function enterFocusMode() {
+    focusMode = true;
+    focusOverlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+    syncFocusDisplay();
+    loadFocusLeaderboard();
+}
+
+function exitFocusMode() {
+    focusMode = false;
+    focusOverlay.hidden = true;
+    document.body.style.overflow = '';
+}
+
+function syncFocusDisplay() {
+    if (!focusMode) return;
+    focusTimeEl.textContent = formatPomoTime(pomoRemaining);
+
+    if (pomoPhase === 'study') {
+        focusPhaseEl.textContent = pomoState === 'running' ? 'وقت التركيز' :
+                                   pomoState === 'paused' ? 'متوقف مؤقتاً' : 'جاهز للبدء';
+        focusPhaseEl.classList.remove('break');
+        focusRingEl.classList.remove('break');
+    } else {
+        focusPhaseEl.textContent = pomoState === 'running' ? 'وقت الراحة' :
+                                   pomoState === 'paused' ? 'الراحة متوقفة' : 'انتهت الراحة';
+        focusPhaseEl.classList.add('break');
+        focusRingEl.classList.add('break');
+    }
+
+    if (pomoState === 'running') {
+        focusToggleIcon.textContent = '⏸';
+        focusToggleLabel.textContent = 'إيقاف مؤقت';
+        focusToggleBtn.classList.add('running');
+    } else if (pomoState === 'paused') {
+        focusToggleIcon.textContent = '▶';
+        focusToggleLabel.textContent = 'متابعة';
+        focusToggleBtn.classList.remove('running');
+    } else {
+        focusToggleIcon.textContent = '▶';
+        focusToggleLabel.textContent = pomoPhase === 'study' ? 'ابدأ التركيز' : 'ابدأ الراحة';
+        focusToggleBtn.classList.remove('running');
+    }
+
+    const progress = pomoTotal > 0 ? pomoRemaining / pomoTotal : 0;
+    focusRingEl.style.strokeDashoffset = String(POMO_RING_CIRCUMFERENCE * (1 - progress));
+
+    const n = getPomoCyclesToday();
+    if (n > 0) {
+        focusCounterEl.hidden = false;
+        focusCyclesEl.textContent = toArabicDigits(n);
+    } else {
+        focusCounterEl.hidden = true;
+    }
+}
+
+function loadFocusLeaderboard() {
+    if (CONFIG.API_URL.includes('PASTE_YOUR')) {
+        focusLeaderboardList.innerHTML = '<div class="leaderboard-empty"><p>لم يتم ربط الخادم</p></div>';
+        return;
+    }
+    const cached = localStorage.getItem('lb_cache_today');
+    if (cached) {
+        try { renderFocusLeaderboard(JSON.parse(cached)); } catch (_) {}
+    }
+    fetch(`${CONFIG.API_URL}?period=today`)
+        .then(r => r.json())
+        .then(data => { if (Array.isArray(data)) renderFocusLeaderboard(data); })
+        .catch(() => {});
+}
+
+function renderFocusLeaderboard(rows) {
+    if (!rows || rows.length === 0) {
+        focusLeaderboardList.innerHTML = '<div class="leaderboard-empty"><div class="leaderboard-empty-icon">📚</div><p>لا توجد جلسات بعد</p></div>';
+        return;
+    }
+    focusLeaderboardList.innerHTML = '';
+    rows.slice(0, 10).forEach((row, idx) => {
+        const rank = idx + 1;
+        const el = document.createElement('div');
+        el.className = `leaderboard-row rank-${rank}`;
+        let badgeHtml;
+        if (rank === 1) badgeHtml = '<div class="rank-badge medal-gold">🥇</div>';
+        else if (rank === 2) badgeHtml = '<div class="rank-badge medal-silver">🥈</div>';
+        else if (rank === 3) badgeHtml = '<div class="rank-badge medal-bronze">🥉</div>';
+        else badgeHtml = `<div class="rank-badge muted">${toArabicDigits(rank)}</div>`;
+        el.innerHTML = `
+            ${badgeHtml}
+            <div class="row-info"><div class="row-name">${escapeHtml(row.userName)}</div></div>
+            <div class="row-time">${formatTotalMinutes(row.totalMinutes || 0)}</div>
+        `;
+        focusLeaderboardList.appendChild(el);
+    });
+}
 
 // Bell sound via Web Audio API (no external file)
 let audioCtx = null;

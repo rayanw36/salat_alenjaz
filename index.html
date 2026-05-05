@@ -97,6 +97,9 @@
 
                 <!-- ====== Pomodoro Timer ====== -->
                 <div class="card pomo-card">
+                    <button class="pomo-expand-btn" id="pomo-expand" aria-label="وضع التركيز">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+                    </button>
                     <header class="card-header">
                         <h2>تايمر التركيز</h2>
                         <p class="card-subtitle">٧٥ دقيقة تركيز · ١٥ دقيقة راحة</p>
@@ -137,10 +140,6 @@
                             <button class="pomo-btn pomo-btn-secondary" id="pomo-reset" title="إعادة">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M21 3v5h-5"/></svg>
                                 إعادة
-                            </button>
-                            <button class="pomo-btn pomo-btn-secondary" id="pomo-fullscreen" title="وضع الشاشة الكاملة">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-                                شاشة كاملة
                             </button>
                         </div>
 
@@ -383,6 +382,67 @@
             <div class="chart-section">
                 <h4>الأيام السبعة الماضية</h4>
                 <svg id="weekly-chart" viewBox="0 0 350 160" aria-label="رسم بياني لآخر سبعة أيام"></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Focus mode (full-page timer + leaderboard) ===== -->
+    <div class="focus-overlay" id="focus-overlay" hidden>
+        <button class="focus-close-btn" id="focus-close" aria-label="خروج من وضع التركيز">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 14h3a2 2 0 0 1 2 2v3"/>
+                <path d="M14 4v3a2 2 0 0 0 2 2h3"/>
+                <path d="M20 10h-3a2 2 0 0 1-2-2V5"/>
+                <path d="M10 20v-3a2 2 0 0 0-2-2H5"/>
+            </svg>
+        </button>
+        <div class="focus-grid">
+            <!-- Right side: big timer -->
+            <div class="focus-timer-side">
+                <div class="focus-ring-wrapper">
+                    <svg class="pomo-ring focus-ring" viewBox="0 0 200 200">
+                        <defs>
+                            <linearGradient id="focusPomoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#B8941F"/>
+                                <stop offset="100%" stop-color="#D4AF37"/>
+                            </linearGradient>
+                            <linearGradient id="focusBreakGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#10B981"/>
+                                <stop offset="100%" stop-color="#34D399"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="100" cy="100" r="86" class="ring-track"/>
+                        <circle cx="100" cy="100" r="86" class="ring-progress" id="focus-ring-progress"
+                            transform="rotate(-90 100 100)"/>
+                    </svg>
+                    <div class="pomo-display">
+                        <div class="focus-time" id="focus-time">٧٥:٠٠</div>
+                        <div class="focus-phase" id="focus-phase">جاهز للبدء</div>
+                    </div>
+                </div>
+                <div class="focus-controls">
+                    <button class="pomo-btn pomo-btn-primary focus-btn" id="focus-toggle">
+                        <span class="pomo-btn-icon" id="focus-icon">▶</span>
+                        <span id="focus-toggle-label">ابدأ التركيز</span>
+                    </button>
+                    <button class="pomo-btn pomo-btn-secondary focus-btn" id="focus-skip-btn">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                        تخطي
+                    </button>
+                    <button class="pomo-btn pomo-btn-secondary focus-btn" id="focus-reset-btn">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M21 3v5h-5"/></svg>
+                        إعادة
+                    </button>
+                </div>
+                <div class="focus-counter" id="focus-counter" hidden>
+                    🔥 جلسات اليوم: <strong id="focus-cycles">٠</strong>
+                </div>
+            </div>
+
+            <!-- Left side: today's leaderboard -->
+            <div class="focus-leaderboard-side">
+                <h3>لوحة المتصدرين — اليوم</h3>
+                <div class="focus-leaderboard-list" id="focus-leaderboard-list"></div>
             </div>
         </div>
     </div>
