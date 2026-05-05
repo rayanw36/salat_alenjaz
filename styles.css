@@ -670,6 +670,26 @@ h1, h2, h3, h4 {
     font-weight: 800;
 }
 
+.focus-quote {
+    max-width: 520px;
+    padding: 16px 24px;
+    text-align: center;
+}
+
+.focus-quote-text {
+    font-size: clamp(1rem, 2.5vw, 1.3rem);
+    font-weight: 600;
+    color: var(--gold-deep);
+    line-height: 2;
+    font-style: italic;
+    opacity: 0.8;
+    transition: opacity 0.5s var(--ease-out);
+}
+
+.focus-quote-text.fade {
+    opacity: 0;
+}
+
 /* Focus leaderboard side */
 .focus-leaderboard-side {
     background: var(--surface-strong);

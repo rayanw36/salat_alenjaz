@@ -1246,6 +1246,7 @@ pomoBreakInput.addEventListener('change', () => {
    ============================================================ */
 
 const quoteTextEl = document.getElementById('quote-text');
+const focusQuoteTextEl = document.getElementById('focus-quote-text');
 let quotes = ['لا تحسبِ المجدَ تَمْراً أنت آكله … لن تبلغَ المجد حَتَّى تَلْعَق الصَّبِر'];
 let quoteIndex = 0;
 let quoteRotateTimer = null;
@@ -1258,6 +1259,7 @@ function fetchQuotes() {
             if (Array.isArray(data) && data.length > 0) {
                 quotes = data;
                 quoteTextEl.textContent = quotes[0];
+                focusQuoteTextEl.textContent = quotes[0];
                 quoteIndex = 0;
                 startQuoteRotation();
                 try { localStorage.setItem('cached_quotes', JSON.stringify(data)); } catch (_) {}
@@ -1269,9 +1271,12 @@ function fetchQuotes() {
 function rotateQuote() {
     quoteIndex = (quoteIndex + 1) % quotes.length;
     quoteTextEl.classList.add('fade');
+    focusQuoteTextEl.classList.add('fade');
     setTimeout(() => {
         quoteTextEl.textContent = quotes[quoteIndex];
+        focusQuoteTextEl.textContent = quotes[quoteIndex];
         quoteTextEl.classList.remove('fade');
+        focusQuoteTextEl.classList.remove('fade');
     }, 500);
 }
 
@@ -1292,6 +1297,7 @@ try {
 } catch (_) {}
 
 quoteTextEl.textContent = quotes[0];
+focusQuoteTextEl.textContent = quotes[0];
 fetchQuotes();
 startQuoteRotation();
 
